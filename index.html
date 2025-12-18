@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gravity Melody Race</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="hp-container">
+            <div class="hp-wrapper">
+                <span class="hp-label">BALL 1</span>
+                <div class="hp-bar-bg">
+                    <div id="hp1" class="hp-bar" style="width: 100%;"></div>
+                </div>
+                <span id="hp-val1" class="hp-value">50</span>
+            </div>
+            <div class="hp-wrapper">
+                <span class="hp-label">BALL 2</span>
+                <div class="hp-bar-bg">
+                    <div id="hp2" class="hp-bar" style="width: 100%;"></div>
+                </div>
+                <span id="hp-val2" class="hp-value">50</span>
+            </div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-overlay">
+            <div id="start-screen" class="overlay-panel">
+                <h1>Sword Arena</h1>
+                <p>Due palline, due spade. Vince l'ultimo a restare in piedi.</p>
+                <button id="start-btn">Inizia Combattimento</button>
+            </div>
+            <div id="win-screen" class="overlay-panel hidden">
+                <button id="restart-btn">Riprova</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
