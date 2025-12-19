@@ -125,6 +125,7 @@
     }
 
     // --- CLASSES ---
+    // --- CLASSES ---
     class Ball {
         constructor(x, y, color, id) {
             this.id = id;
@@ -138,6 +139,13 @@
             this.rotationDir = Math.random() > 0.5 ? 1 : -1;
             this.lastHit = 0;
             this.history = [];
+
+            // Fire System
+            this.flames = [];
+
+            // Rage Mechanic
+            this.hitTakenCount = 0;
+            this.isEnraged = false;
         }
 
         update() {
@@ -151,6 +159,63 @@
             else if (this.x + this.radius > canvas.width) { this.x = canvas.width - this.radius; this.vx *= -1; }
             if (this.y - this.radius < 0) { this.y = this.radius; this.vy *= -1; }
             else if (this.y + this.radius > canvas.height) { this.y = canvas.height - this.radius; this.vy *= -1; }
+
+            this.updateFlames();
+        }
+
+        updateFlames() {
+            // Rage Mode: Le fiamme appaiono SOLO se la palla è arrabbiata (3 colpi subiti)
+            if (!this.isEnraged) {
+                // Se non è arrabbiata, non genera nuove particelle.
+                // Facciamo solo il decay di quelle esistenti.
+            } else {
+                // 1. AURA FIAMMANTE RIDOTTA
+                const auraCount = 2; // Ridotto per effetto "contenuto"
+                for (let i = 0; i < auraCount; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const r = this.radius * (0.8 + Math.random() * 0.2);
+                    const fx = Math.cos(a) * r;
+                    const fy = Math.sin(a) * r;
+
+                    this.flames.push({
+                        x: fx, y: fy,
+                        vx: Math.cos(a) * (0.5 + Math.random() * 1.0),
+                        vy: Math.sin(a) * (0.5 + Math.random() * 1.0),
+                        life: 1.0,
+                        maxLife: 1.0,
+                        size: 8 + Math.random() * 12, // Dimensioni ridotte (8-20px)
+                        type: 'aura'
+                    });
+                }
+
+                // 2. SPADA FIAMMANTE RIDOTTA
+                const swordCount = 2;
+                for (let i = 0; i < swordCount; i++) {
+                    const dist = Math.random() * SWORD_LENGTH;
+                    const sx = dist;
+                    const sy = (Math.random() - 0.5) * SWORD_WIDTH * 1.5;
+
+                    this.flames.push({
+                        x: sx, y: sy,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        life: 1.0,
+                        maxLife: 1.0,
+                        size: 4 + Math.random() * 6, // Dimensioni ridotte (4-10px)
+                        type: 'sword'
+                    });
+                }
+            }
+
+            // Aggiorna particelle esistenti (decay)
+            for (let i = this.flames.length - 1; i >= 0; i--) {
+                let p = this.flames[i];
+                p.life -= 0.05; // Decay rapido
+                p.x += p.vx;
+                p.y += p.vy;
+                p.size *= 0.96; // Si rimpiccioliscono
+                if (p.life <= 0) this.flames.splice(i, 1);
+            }
         }
 
         normalizeVelocity() {
@@ -165,9 +230,10 @@
         }
 
         draw() {
+            // 1. History Trails (World Space)
             this.history.forEach((h, i) => {
                 ctx.save();
-                ctx.globalAlpha = (5 - i) / 10;
+                ctx.globalAlpha = (5 - i) / 10 * 0.5; // Meno invasiva
                 ctx.translate(h.x, h.y);
                 ctx.rotate(h.angle);
                 ctx.fillStyle = SWORD_COLOR;
@@ -175,20 +241,53 @@
                 ctx.restore();
             });
 
+            // 2. Ball & Fire (Local Space)
             ctx.save();
             ctx.translate(this.x, this.y);
-
-            // --- PARTE ROTANTE (Spada, Corpo, Icona) ---
-            ctx.save();
             ctx.rotate(this.angle);
 
+            // --- DISEGNO FIAMME (SOFT) ---
+            ctx.globalCompositeOperation = 'lighter'; // Glow
+
+            this.flames.forEach(p => {
+                const alpha = p.life * 0.4; // Molto trasparenti per sovrapposizione morbida
+                if (alpha <= 0) return;
+
+                // Creiamo un gradiente radiale per ogni particella per renderla "fumosa" e non "pallino"
+                // Gradiente dal centro (colore pieno) all'esterno (trasparente)
+                const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+
+                if (this.id === 1) { // RED (Caldo ma profondo)
+                    // Core: Arancio caldo -> Out: Rosso scuro trasparente
+                    grad.addColorStop(0, `rgba(255, 200, 50, ${alpha})`);
+                    grad.addColorStop(0.5, `rgba(255, 80, 0, ${alpha * 0.5})`);
+                    grad.addColorStop(1, `rgba(100, 0, 0, 0)`);
+                } else { // GREEN (Etereo)
+                    // Core: Bianco/Lime -> Out: Verde scuro trasparente
+                    grad.addColorStop(0, `rgba(200, 255, 100, ${alpha})`);
+                    grad.addColorStop(0.5, `rgba(50, 200, 50, ${alpha * 0.5})`);
+                    grad.addColorStop(1, `rgba(0, 50, 0, 0)`);
+                }
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                // Disegniamo un cerchio più grande del "size" visivo per contenere la sfumatura
+                ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalCompositeOperation = 'source-over';
+
+            // --- CORPO ---
             // Sword
             ctx.fillStyle = SWORD_COLOR;
-            ctx.shadowBlur = 10; ctx.shadowColor = SWORD_COLOR;
+            // Shadow più morbida e larga
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = (this.id === 1) ? 'rgba(255, 100, 0, 0.8)' : 'rgba(50, 255, 50, 0.8)';
             ctx.fillRect(0, -SWORD_WIDTH / 2, SWORD_LENGTH, SWORD_WIDTH);
 
             // Ball Body
-            ctx.shadowBlur = 20; ctx.shadowColor = this.color;
+            ctx.shadowBlur = 40; // Aura glow di base molto ampia
+            ctx.shadowColor = (this.id === 1) ? '#ff4400' : '#44ff44';
             ctx.fillStyle = this.color;
             ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
 
@@ -213,24 +312,20 @@
             }
             ctx.restore();
 
-            // --- PARTE STATICA (Testo Fisso) ---
+            // --- PARTE STATICA ---
             ctx.save();
+            ctx.translate(this.x, this.y);
             const label = (this.id === 1) ? 'GUITAR' : 'PIANO';
             ctx.font = 'bold 12px Inter, Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-
-            // Piccola fascia scura per leggibilità
             const textW = ctx.measureText(label).width + 8;
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
             ctx.roundRect(-textW / 2, -10, textW, 20, 4);
             ctx.fill();
-
             ctx.fillStyle = 'white';
             ctx.fillText(label, 0, 0);
-            ctx.restore();
-
             ctx.restore();
         }
 
@@ -275,11 +370,66 @@
 
         const d1to2 = Math.sqrt((s1.p2.x - b2.x) ** 2 + (s1.p2.y - b2.y) ** 2);
         if (d1to2 < b2.radius && now - b2.lastHit > HIT_COOLDOWN) {
-            b2.hp -= DAMAGE; b2.lastHit = now; b1.rotationDir *= -1; playStab(); spawnParticles(s1.p2.x, s1.p2.y, b1.color); screenShake = 15;
+            // B1 hits B2
+            if (b1.isEnraged) {
+                // FAIL ATTACK
+                b2.hp -= 15;
+                b1.isEnraged = false;
+                b1.hitTakenCount = 0;
+                playStab();
+                screenShake = 30; // More shake
+                spawnParticles(s1.p2.x, s1.p2.y, b1.color, 40); // More particles (Explosion)
+                // Optional: Special sound or big visual flare
+            } else {
+                b2.hp -= DAMAGE;
+                playStab();
+                spawnParticles(s1.p2.x, s1.p2.y, b1.color);
+                screenShake = 15;
+            }
+
+            b2.lastHit = now;
+            b1.rotationDir *= -1;
+
+            // Update Rage for Victim (B2)
+            if (!b2.isEnraged) {
+                b2.hitTakenCount++;
+                if (b2.hitTakenCount >= 3) {
+                    b2.isEnraged = true;
+                    // Visual feedback for activation could go here (e.g. flash)
+                    spawnParticles(b2.x, b2.y, 'white', 20); // Quick burst to show activation
+                }
+            }
         }
+
         const d2to1 = Math.sqrt((s2.p2.x - b1.x) ** 2 + (s2.p2.y - b1.y) ** 2);
         if (d2to1 < b1.radius && now - b1.lastHit > HIT_COOLDOWN) {
-            b1.hp -= DAMAGE; b1.lastHit = now; b2.rotationDir *= -1; playStab(); spawnParticles(s2.p2.x, s2.p2.y, b2.color); screenShake = 15;
+            // B2 hits B1
+            if (b2.isEnraged) {
+                // FAIL ATTACK
+                b1.hp -= 15;
+                b2.isEnraged = false;
+                b2.hitTakenCount = 0;
+                playStab();
+                screenShake = 30;
+                spawnParticles(s2.p2.x, s2.p2.y, b2.color, 40);
+            } else {
+                b1.hp -= DAMAGE;
+                playStab();
+                spawnParticles(s2.p2.x, s2.p2.y, b2.color);
+                screenShake = 15;
+            }
+
+            b1.lastHit = now;
+            b2.rotationDir *= -1;
+
+            // Update Rage for Victim (B1)
+            if (!b1.isEnraged) {
+                b1.hitTakenCount++;
+                if (b1.hitTakenCount >= 3) {
+                    b1.isEnraged = true;
+                    spawnParticles(b1.x, b1.y, 'white', 20);
+                }
+            }
         }
 
         if (distBetweenSegments(s1.p1, s1.p2, s2.p1, s2.p2) < (SWORD_WIDTH + 10)) {
